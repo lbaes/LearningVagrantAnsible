@@ -1,0 +1,116 @@
+
+---
+
+######################################################
+#                                                    #
+#                       All                          #
+#                                                    #
+######################################################
+
+
+ - hosts: all
+   tasks:
+     - name: Update apt packages
+       apt:
+           upgrade: no
+           update_cache: yes
+           cache_valid_time: 86400 #One day
+       become: true
+          
+######################################################
+#                                                    #
+#                       Web                          #
+#                                                    #
+######################################################
+   
+ - hosts: web
+   handlers:
+   - name: restart tomcat9 service
+     service:
+      name: tomcat9
+      state: restarted
+     become: true
+   
+   tasks:   
+    - name: garantir tomcat9
+      apt:
+         update_cache: yes
+         name: ['tomcat9', 'mysql-client']
+         state: latest
+      become: yes
+    
+    - name: copy .keystore
+      copy:
+        src: '.keystore'
+        dest: '/var/lib/tomcat9/conf/.keystore'
+      become: true
+      
+      
+    - name: copy server.xml
+      copy:
+        src: 'server.xml'
+        dest: '/var/lib/tomcat9/conf/server.xml'
+      become: true
+    
+    - name: copy tomcat9
+      copy:
+        src: 'tomcat9'
+        dest: '/etc/default/tomcat9'
+      become: true
+      notify:
+        - restart tomcat9 service
+    
+      
+######################################################
+#                                                    #
+#                       Db                           #
+#                                                    #
+######################################################
+ - hosts: db
+   handlers:
+    - name: restart mysql service
+      service:
+         name: mysql
+         state: restarted
+      become: true
+         
+   tasks:
+    - name: garantir mysql
+      apt:
+         update_cache: yes
+         name: ['mysql-server', 'python-mysqldb']
+         state: latest
+      become: true
+      
+    - name: loja-schema
+      mysql_db:
+        name: loja-schema
+        login_user: root
+        state: present
+      become: true
+        
+    - name: deletar conta anonima
+      mysql_user:
+         login_user: root
+         name: ''
+         state: absent
+      become: true
+        
+    - name: usuario loja
+      mysql_user:
+         login_user: root
+         name: loja
+         password: lojasecret
+         priv: 'loja-schema.*:ALL'
+         state: present
+      become: true
+    
+    - name: 'allow external conf'
+      copy: 
+        src: 'allow_ext.cnf'
+        dest: '/etc/mysql/conf.d/allow_external.cnf'
+      become: true
+      notify:
+       - restart mysql service
+    
+        
